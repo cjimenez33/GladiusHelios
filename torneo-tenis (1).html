@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuito — Gestión de Campeonato</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!-- Firebase (almacenamiento compartido, sin necesidad de cuenta para los jugadores) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --court-navy:#0B2A45;
+    --court-navy-2:#123A5E;
+    --court-navy-3:#0E3252;
+    --chalk:#F4F7F2;
+    --chalk-dim:#9FB2C0;
+    --ball:#D7F531;
+    --ball-dim:#8CA224;
+    --clay:#C1622D;
+    --clay-dim:#8C481F;
+    --amber:#F2A63A;
+    --red:#E4573D;
+    --line:#3A5E82;
+    --font-display:'Oswald',Impact,sans-serif;
+    --font-body:'Inter',sans-serif;
+    --font-mono:'Space Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(ellipse at top,#0E3559 0%,var(--court-navy) 55%,#081D33 100%);
+    color:var(--chalk);
+    font-family:var(--font-body);
+    min-height:100vh;
+  }
+  h1,h2,h3,.disp{font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.04em;}
+  .mono{font-family:var(--font-mono);}
+  a{color:var(--ball);}
+  button{cursor:pointer;font-family:var(--font-body);border:none;border-radius:6px;font-weight:600;}
+  input,select{font-family:var(--font-body);}
+  #app{max-width:1200px;margin:0 auto;padding:0 20px 60px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:22px 0 10px;flex-wrap:wrap;gap:10px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .ball-dot{width:14px;height:14px;border-radius:50%;background:var(--ball);box-shadow:0 0 12px var(--ball);}
+  .brand h1{font-size:22px;margin:0;color:var(--chalk);}
+  .estado-pill{font-size:11px;padding:4px 10px;border-radius:20px;background:var(--court-navy-2);border:1px solid var(--line);color:var(--chalk-dim);letter-spacing:.08em;text-transform:uppercase;}
+
+  nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 26px;border-bottom:1px solid var(--line);padding-bottom:0;}
+  nav.tabs button{background:transparent;color:var(--chalk-dim);padding:10px 16px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;font-family:var(--font-display);border-radius:8px 8px 0 0;position:relative;top:1px;}
+  nav.tabs button.active{color:var(--ball);background:var(--court-navy-2);border:1px solid var(--line);border-bottom:1px solid var(--court-navy-2);}
+  nav.tabs button:hover{color:var(--chalk);}
+
+  .panel{background:var(--court-navy-2);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:20px;}
+  .panel h2{font-size:19px;margin:0 0 14px;color:var(--chalk);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:720px){.grid2{grid-template-columns:1fr;}}
+
+  label{display:block;font-size:12px;color:var(--chalk-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  input[type=text],input[type=email],input[type=tel],input[type=password],input[type=date],input[type=number]{
+    width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--court-navy-3);color:var(--chalk);margin-bottom:14px;font-size:14px;
+  }
+  input:focus,select:focus,button:focus{outline:2px solid var(--ball);outline-offset:1px;}
+  .btn-primary{background:var(--ball);color:#0B2A45;padding:10px 18px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;}
+  .btn-primary:hover{background:#c3e62c;}
+  .btn-primary:disabled{background:#5b6a3a;color:#9aa08a;cursor:not-allowed;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--chalk);padding:9px 16px;font-size:13px;}
+  .btn-ghost:hover{border-color:var(--ball);color:var(--ball);}
+  .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);padding:9px 16px;font-size:13px;}
+  .btn-danger:hover{background:var(--red);color:#fff;}
+  .btn-small{padding:6px 12px;font-size:12px;border-radius:6px;}
+
+  .hint{font-size:12.5px;color:var(--chalk-dim);margin:-8px 0 14px;}
+  .error{color:var(--red);font-size:13px;margin:-6px 0 12px;}
+  .success{color:var(--ball);font-size:13px;margin:-6px 0 12px;}
+
+  /* timeline / signature element */
+  .clock{background:linear-gradient(180deg,#081D33,#0B2A45);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:20px;}
+  .clock-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .clock-reading{font-family:var(--font-mono);font-size:26px;color:var(--ball);text-shadow:0 0 10px rgba(215,245,49,.5);}
+  .clock-sub{font-size:12px;color:var(--chalk-dim);text-transform:uppercase;letter-spacing:.08em;}
+  .track{position:relative;height:8px;background:var(--court-navy-3);border-radius:4px;margin:26px 4px 30px;}
+  .track-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--clay),var(--ball));border-radius:4px;}
+  .tick{position:absolute;top:-6px;width:2px;height:20px;background:var(--line);}
+  .tick.overdue{background:var(--red);}
+  .tick-label{position:absolute;top:16px;font-size:10px;color:var(--chalk-dim);white-space:nowrap;transform:translateX(-50%);text-align:center;}
+  .marker-now{position:absolute;top:-14px;width:14px;height:14px;border-radius:50%;background:var(--ball);box-shadow:0 0 8px var(--ball);transform:translateX(-50%);}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th{text-align:left;color:var(--chalk-dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line);}
+  td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.06);}
+  tr:hover td{background:rgba(255,255,255,.02);}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+  .badge.reg{background:rgba(215,245,49,.15);color:var(--ball);}
+  .badge.done{background:rgba(215,245,49,.15);color:var(--ball);}
+  .badge.pending{background:rgba(242,166,58,.18);color:var(--amber);}
+  .badge.overdue{background:rgba(228,87,61,.18);color:var(--red);}
+
+  /* bracket */
+  .bracket-scroll{overflow-x:auto;padding-bottom:10px;}
+  .bracket-wrap{position:relative;}
+  .round-header{position:absolute;top:-34px;font-family:var(--font-display);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--chalk-dim);width:220px;text-align:center;}
+  .round-header .dl{display:block;font-family:var(--font-mono);font-size:10.5px;color:var(--chalk-dim);margin-top:2px;}
+  .conn{position:absolute;background:var(--line);}
+  .conn.cons{background:var(--clay-dim);}
+  .match-card{position:absolute;width:220px;border-radius:8px;border:1px solid var(--line);background:var(--court-navy-3);overflow:hidden;cursor:pointer;transition:border-color .15s;}
+  .match-card:hover{border-color:var(--ball);}
+  .match-card.selected{border-color:var(--ball);box-shadow:0 0 0 1px var(--ball);}
+  .match-card.cons{border-color:var(--clay-dim);}
+  .match-card.cons:hover{border-color:var(--clay);}
+  .match-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font-size:13px;}
+  .match-row:first-child{border-bottom:1px solid rgba(255,255,255,.07);}
+  .match-row.winner{color:var(--ball);font-weight:700;}
+  .match-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
+  .match-row .sc{font-family:var(--font-mono);font-size:11.5px;color:var(--chalk-dim);}
+  .match-status{font-size:9.5px;text-align:center;padding:2px;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.03);color:var(--chalk-dim);}
+  .match-status.pending{color:var(--amber);}
+  .match-status.confirmed{color:var(--ball);}
+  .match-status.overdue{color:var(--red);}
+  .champion-box{position:absolute;width:220px;padding:14px;border-radius:8px;border:1px solid var(--ball);background:rgba(215,245,49,.08);text-align:center;}
+  .champion-box .lbl{font-size:10px;color:var(--ball);text-transform:uppercase;letter-spacing:.08em;}
+  .champion-box .nm{font-family:var(--font-display);font-size:16px;margin-top:4px;}
+
+  .match-panel{margin-top:18px;}
+  .set-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+  .set-row span{width:56px;font-size:12px;color:var(--chalk-dim);}
+  .set-row input{margin-bottom:0;width:70px;text-align:center;}
+  .radio-row{display:flex;gap:16px;margin-bottom:14px;}
+  .radio-row label{display:flex;align-items:center;gap:6px;text-transform:none;font-size:14px;color:var(--chalk);letter-spacing:0;}
+
+  .players-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .player-chip{background:var(--court-navy-3);border:1px solid var(--line);padding:6px 10px;border-radius:20px;font-size:12.5px;display:flex;align-items:center;gap:8px;}
+  .player-chip button{background:transparent;color:var(--red);padding:0;font-size:14px;line-height:1;}
+
+  footer{text-align:center;color:var(--chalk-dim);font-size:11.5px;padding:30px 0 10px;}
+  .config-warning{background:#3a1f1f;border:1px solid var(--red);color:#ffd9d0;padding:16px 20px;border-radius:10px;margin:20px 0;font-size:14px;line-height:1.5;}
+  .config-warning code{background:rgba(255,255,255,.1);padding:1px 6px;border-radius:4px;}
+  .remote-banner{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ball);color:#0B2A45;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:50;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="app">Cargando…</div>
+
+<script>
+/* ============ CONFIGURACIÓN DE FIREBASE ============
+   1. Ve a https://console.firebase.google.com y crea un proyecto gratuito.
+   2. Dentro del proyecto, ve a "Firestore Database" -> "Crear base de datos" -> modo de producción.
+   3. En la pestaña "Reglas" de Firestore, pega esto y publica (permite leer/escribir sin login;
+      es la única forma de que los jugadores no necesiten cuenta, así que no metas datos sensibles):
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /torneos/{docId} { allow read, write: if true; }
+          }
+        }
+   4. Ve a "Configuración del proyecto" (icono del engranaje) -> "Tus apps" -> icono web </> ->
+      registra una app y copia el objeto firebaseConfig que te da. Pégalo aquí abajo. */
+const firebaseConfig = {
+  apiKey: "AIzaSyCbJTW3h1h_vZ3dPQNRwAXBr4K58xr7c98",
+  authDomain: "tenis-8c08c.firebaseapp.com",
+  projectId: "tenis-8c08c",
+  storageBucket: "tenis-8c08c.firebasestorage.app",
+  messagingSenderId: "300363857951",
+  appId: "1:300363857951:web:ae16879b6064f8e44bd52a"
+};
+const FIRESTORE_COLLECTION = 'torneos';
+const FIRESTORE_DOC = 'principal';
+let db = null;
+let unsubscribeSnapshot = null;
+let remoteUpdatePending = null;
+let configOk = firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('TU_') !== 0;
+
+/* ============ CONSTANTES / HELPERS ============ */
+const CARD_W = 220, CARD_H = 62, GAP0 = 22, COL_GAP = 90, CARD_GAP_X = CARD_W + COL_GAP;
+
+function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function nextPow2(n){ let p=1; while(p<n) p*=2; return Math.max(p,2); }
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+async function sha256(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function formatDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
+}
+function nombreRonda(numMatches){
+  const map = {1:'Final',2:'Semifinales',4:'Cuartos de final',8:'Octavos de final',16:'Dieciseisavos',32:'Treintaidosavos'};
+  return map[numMatches] || ('Ronda de '+(numMatches*2));
+}
+function addMonths(dateStr, months){
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth()+months);
+  return d.toISOString().slice(0,10);
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+/* ============ ESTADO ============ */
+let state = null;
+let isAdmin = false;
+let currentTab = 'inicio';
+let selectedMatch = null; // {bracket, r, i}
+let uiError = '';
+let uiMsg = '';
+
+function defaultState(){
+  return {
+    meta:{
+      nombre:'Campeonato de Tenis',
+      maxJugadores:64,
+      estado:'inscripcion', // inscripcion | sorteo_realizado | finalizado
+      fechaLimiteInscripcion:null,
+      fechaInicio:null,
+      fechaFin:null,
+      adminHash:null
+    },
+    jugadores:[],
+    principal:{rondas:[],fechasLimite:[],campeon:null},
+    consolacion:{rondas:[],fechasLimite:[],generada:false,losers:[],campeon:null}
+  };
+}
+
+function initFirebase(){
+  if(!configOk) return false;
+  try{
+    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    return true;
+  }catch(e){ console.error('Error inicializando Firebase', e); return false; }
+}
+function docRef(){ return db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC); }
+
+async function loadState(){
+  if(!initFirebase()){ state = defaultState(); return; }
+  try{
+    const snap = await docRef().get();
+    if(snap.exists){
+      state = JSON.parse(snap.data().json);
+    } else {
+      state = defaultState();
+      await docRef().set({json: JSON.stringify(state)});
+    }
+  }catch(e){
+    console.error('Error cargando datos de Firestore', e);
+    state = defaultState();
+  }
+  attachListener();
+}
+async function saveState(){
+  if(!db) return;
+  try{ await docRef().set({json: JSON.stringify(state)}); }
+  catch(e){ console.error('Error guardando en Firestore', e); uiError='No se pudo guardar. Comprueba tu conexión.'; }
+}
+function attachListener(){
+  if(!db || unsubscribeSnapshot) return;
+  unsubscribeSnapshot = docRef().onSnapshot(snap=>{
+    if(!snap.exists) return;
+    let data;
+    try{ data = JSON.parse(snap.data().json); }catch(e){ return; }
+    const active = document.activeElement;
+    const escribiendo = active && (active.tagName==='INPUT' || active.tagName==='SELECT' || active.tagName==='TEXTAREA');
+    if(escribiendo || selectedMatch){
+      remoteUpdatePending = data;
+    } else {
+      state = data;
+      render();
+    }
+  }, err=>{ console.error('Error de escucha en tiempo real', err); });
+}
+function applyPendingUpdate(){
+  if(remoteUpdatePending){ state = remoteUpdatePending; remoteUpdatePending=null; selectedMatch=null; }
+  render();
+}
+async function refreshFromStorage(){
+  if(!db){ uiError='No se pudo conectar con la base de datos.'; render(); return; }
+  try{
+    const snap = await docRef().get();
+    if(snap.exists) state = JSON.parse(snap.data().json);
+    remoteUpdatePending = null;
+    uiMsg = 'Datos actualizados.';
+  }catch(e){ uiError = 'No se pudo actualizar.'; }
+  render();
+}
+
+/* ============ JUGADORES ============ */
+function registrationOpen(){
+  if(state.meta.estado !== 'inscripcion') return false;
+  if(state.jugadores.length >= state.meta.maxJugadores) return false;
+  if(state.meta.fechaLimiteInscripcion && todayISO() > state.meta.fechaLimiteInscripcion) return false;
+  return true;
+}
+async function registerPlayer(nombre,email,telefono){
+  uiError=''; uiMsg='';
+  if(!nombre || !nombre.trim()){ uiError='El nombre es obligatorio.'; render(); return; }
+  if(!registrationOpen()){ uiError='La inscripción está cerrada.'; render(); return; }
+  state.jugadores.push({id:uid(),nombre:nombre.trim(),email:(email||'').trim(),telefono:(telefono||'').trim(),creado:new Date().toISOString()});
+  await saveState();
+  uiMsg = nombre.trim()+' se ha inscrito correctamente.';
+  render();
+}
+async function removePlayer(id){
+  if(state.meta.estado !== 'inscripcion') return;
+  state.jugadores = state.jugadores.filter(p=>p.id!==id);
+  await saveState();
+  render();
+}
+
+/* ============ FECHAS ============ */
+function computeRoundDeadlines(fechaInicio, fechaFin, numRounds){
+  const start = new Date(fechaInicio).getTime();
+  const end = new Date(fechaFin).getTime();
+  const total = end - start;
+  const arr = [];
+  for(let r=1;r<=numRounds;r++){
+    const t = start + total*(r/numRounds);
+    arr.push(new Date(t).toISOString().slice(0,10));
+  }
+  return arr;
+}
+async function saveFechas(fInsc,fInicio,fFin){
+  uiError=''; uiMsg='';
+  if(fInsc && fInicio && fInsc > fInicio){ uiError='La fecha límite de inscripción debe ser anterior al inicio del cuadro.'; render(); return; }
+  if(fInicio && fFin){
+    const maxFin = addMonths(fInicio,2);
+    if(fFin > maxFin){ uiError='La fecha de finalización no puede superar 2 meses desde el inicio ('+formatDate(maxFin)+').'; render(); return; }
+    if(fFin <= fInicio){ uiError='La fecha de finalización debe ser posterior al inicio.'; render(); return; }
+  }
+  state.meta.fechaLimiteInscripcion = fInsc || null;
+  state.meta.fechaInicio = fInicio || null;
+  state.meta.fechaFin = fFin || null;
+  recomputeDeadlines();
+  await saveState();
+  uiMsg = 'Fechas guardadas.';
+  render();
+}
+function recomputeDeadlines(){
+  if(!state.meta.fechaInicio || !state.meta.fechaFin) return;
+  if(state.principal.rondas.length){
+    state.principal.fechasLimite = computeRoundDeadlines(state.meta.fechaInicio, state.meta.fechaFin, state.principal.rondas.length);
+  }
+  if(state.consolacion.generada && state.consolacion.rondas.length){
+    state.consolacion.fechasLimite = state.consolacion.rondas.map((_,r)=> state.principal.fechasLimite[r+1] || state.principal.fechasLimite[state.principal.fechasLimite.length-1]);
+  }
+}
+
+/* ============ SORTEO / CUADROS ============ */
+function makeMatch(p1,p2){
+  return {id:uid(), p1Id:p1?p1.id:null, p2Id:p2?p2.id:null, p1Nombre:p1?p1.nombre:null, p2Nombre:p2?p2.nombre:null, propuesto:null, confirmado:null};
+}
+function makeEmptyMatch(){
+  return {id:uid(), p1Id:null, p2Id:null, p1Nombre:null, p2Nombre:null, propuesto:null, confirmado:null};
+}
+async function realizarSorteo(){
+  uiError=''; uiMsg='';
+  if(state.jugadores.length < 2){ uiError='Se necesitan al menos 2 jugadores inscritos.'; render(); return; }
+  if(!state.meta.fechaInicio || !state.meta.fechaFin){ uiError='Configura primero la fecha de inicio y la fecha límite en la pestaña Fechas.'; render(); return; }
+
+  const jugadores = state.jugadores.slice(0, state.meta.maxJugadores);
+  const n = jugadores.length;
+  const bracketSize = nextPow2(n);
+  const shuffled = shuffle(jugadores);
+  const byes = bracketSize - n;
+  const round0count = bracketSize/2;
+  const round0 = [];
+  let idx=0;
+  for(let i=0;i<round0count;i++){
+    if(i<byes){ const p1=shuffled[idx++]; round0.push(makeMatch(p1,null)); }
+    else { const p1=shuffled[idx++]; const p2=shuffled[idx++]; round0.push(makeMatch(p1,p2)); }
+  }
+  const numRounds = Math.log2(bracketSize);
+  const rondas = [round0];
+  for(let r=1;r<numRounds;r++){
+    const count = bracketSize/Math.pow(2,r+1);
+    const ronda = []; for(let i=0;i<count;i++) ronda.push(makeEmptyMatch());
+    rondas.push(ronda);
+  }
+  state.principal = {rondas, fechasLimite: computeRoundDeadlines(state.meta.fechaInicio,state.meta.fechaFin,numRounds), campeon:null};
+  state.consolacion = {rondas:[], fechasLimite:[], generada:false, losers:[], campeon:null};
+  state.meta.estado = 'sorteo_realizado';
+
+  round0.forEach((m,i)=>{ if(m.p2Id===null) confirmByeAndAdvance('principal',0,i); });
+
+  await saveState();
+  uiMsg = 'Sorteo realizado. Cuadro de '+bracketSize+' plazas generado.';
+  render();
+}
+function confirmByeAndAdvance(bracketKey,r,i){
+  const bracket = state[bracketKey];
+  const m = bracket.rondas[r][i];
+  m.confirmado = {ganadorId:m.p1Id, sets:[], fecha:new Date().toISOString(), bye:true};
+  advanceWinner(bracketKey,r,i,m.p1Id,m.p1Nombre);
+}
+function advanceWinner(bracketKey,r,i,winnerId,winnerNombre){
+  const bracket = state[bracketKey];
+  if(r+1 >= bracket.rondas.length){ bracket.campeon = {id:winnerId,nombre:winnerNombre}; return; }
+  const nextR = bracket.rondas[r+1];
+  const nextI = Math.floor(i/2);
+  const slot = (i%2===0) ? 'p1' : 'p2';
+  nextR[nextI][slot+'Id'] = winnerId;
+  nextR[nextI][slot+'Nombre'] = winnerNombre;
+}
+function maybeGenerateConsolation(){
+  if(state.consolacion.generada) return;
+  const round0 = state.principal.rondas[0];
+  const esperados = round0.filter(m=>m.p2Id!==null).length;
+  if(esperados===0){ state.consolacion.generada=true; return; }
+  if(state.consolacion.losers.length < esperados) return;
+
+  const losers = shuffle(state.consolacion.losers.slice(0,esperados));
+  const n = losers.length;
+  if(n<2){ state.consolacion.generada=true; state.consolacion.rondas=[]; return; }
+  const bracketSize = nextPow2(n);
+  const byes = bracketSize-n;
+  const round0count = bracketSize/2;
+  const r0=[]; let idx=0;
+  for(let i=0;i<round0count;i++){
+    if(i<byes){ const p=losers[idx++]; r0.push(makeMatch(p,null)); }
+    else { const p1=losers[idx++]; const p2=losers[idx++]; r0.push(makeMatch(p1,p2)); }
+  }
+  const numRounds = Math.log2(bracketSize);
+  const rondas=[r0];
+  for(let r=1;r<numRounds;r++){
+    const count = bracketSize/Math.pow(2,r+1);
+    const ronda=[]; for(let i=0;i<count;i++) ronda.push(makeEmptyMatch());
+    rondas.push(ronda);
+  }
+  const pd = state.principal.fechasLimite;
+  const fechasLimite = rondas.map((_,r)=> pd[r+1] || pd[pd.length-1]);
+  state.consolacion = {rondas, fechasLimite, generada:true, losers:state.consolacion.losers, campeon:null};
+  r0.forEach((m,i)=>{ if(m.p2Id===null) confirmByeAndAdvance('consolacion',0,i); });
+}
+
+function readSetsFromForm(){
+  const sets = [];
+  for(let s=1;s<=3;s++){
+    const a = document.getElementById('set'+s+'a');
+    const b = document.getElementById('set'+s+'b');
+    if(a && b && a.value!=='' && b.value!==''){ sets.push([parseInt(a.value,10),parseInt(b.value,10)]); }
+  }
+  return sets;
+}
+async function proponerResultado(bracketKey,r,i){
+  uiError='';
+  const ganadorSlot = document.querySelector('input[name=ganador]:checked');
+  if(!ganadorSlot){ uiError='Selecciona quién ganó el partido.'; render(); return; }
+  const por = document.getElementById('propuestoPor').value.trim();
+  if(!por){ uiError='Escribe tu nombre para identificar quién propone el resultado.'; render(); return; }
+  const sets = readSetsFromForm();
+  if(sets.length===0){ uiError='Añade al menos el resultado de un set.'; render(); return; }
+  const m = state[bracketKey].rondas[r][i];
+  const ganadorId = ganadorSlot.value==='p1' ? m.p1Id : m.p2Id;
+  m.propuesto = {ganadorId, sets, por, fecha:new Date().toISOString()};
+  await saveState();
+  uiMsg = 'Resultado propuesto. Un administrador debe verificarlo.';
+  render();
+}
+async function confirmarResultado(bracketKey,r,i, desdePropuesta){
+  uiError='';
+  const m = state[bracketKey].rondas[r][i];
+  let ganadorId, sets;
+  if(desdePropuesta && m.propuesto){
+    ganadorId = m.propuesto.ganadorId; sets = m.propuesto.sets;
+  } else {
+    const ganadorSlot = document.querySelector('input[name=ganador]:checked');
+    if(!ganadorSlot){ uiError='Selecciona quién ganó el partido.'; render(); return; }
+    sets = readSetsFromForm();
+    if(sets.length===0){ uiError='Añade al menos el resultado de un set.'; render(); return; }
+    ganadorId = ganadorSlot.value==='p1' ? m.p1Id : m.p2Id;
+  }
+  const loserId = (ganadorId===m.p1Id) ? m.p2Id : m.p1Id;
+  const loserNombre = (ganadorId===m.p1Id) ? m.p2Nombre : m.p1Nombre;
+  const winnerNombre = (ganadorId===m.p1Id) ? m.p1Nombre : m.p2Nombre;
+  m.confirmado = {ganadorId, sets, fecha:new Date().toISOString()};
+  m.propuesto = null;
+  advanceWinner(bracketKey,r,i,ganadorId,winnerNombre);
+  if(bracketKey==='principal' && r===0 && loserId){
+    state.consolacion.losers.push({id:loserId,nombre:loserNombre});
+    maybeGenerateConsolation();
+  }
+  await saveState();
+  selectedMatch = null;
+  uiMsg = 'Resultado confirmado.';
+  render();
+}
+async function rechazarPropuesta(bracketKey,r,i){
+  state[bracketKey].rondas[r][i].propuesto = null;
+  await saveState();
+  render();
+}
+
+/* ============ ADMIN ============ */
+async function configurarPassword(pass1,pass2){
+  uiError='';
+  if(!pass1 || pass1.length<4){ uiError='La contraseña debe tener al menos 4 caracteres.'; render(); return; }
+  if(pass1!==pass2){ uiError='Las contraseñas no coinciden.'; render(); return; }
+  state.meta.adminHash = await sha256(pass1);
+  await saveState();
+  isAdmin = true;
+  uiMsg = 'Contraseña de administrador configurada.';
+  render();
+}
+async function loginAdmin(pass){
+  uiError='';
+  const h = await sha256(pass||'');
+  if(h===state.meta.adminHash){ isAdmin=true; uiMsg='Sesión de administrador iniciada.'; }
+  else { uiError='Contraseña incorrecta.'; }
+  render();
+}
+function logoutAdmin(){ isAdmin=false; render(); }
+async function reiniciarTorneo(){
+  if(!confirm('Esto borrará jugadores, sorteo y resultados. La contraseña de administrador se mantiene. ¿Continuar?')) return;
+  const hash = state.meta.adminHash;
+  const nombre = state.meta.nombre;
+  const maxJ = state.meta.maxJugadores;
+  state = defaultState();
+  state.meta.adminHash = hash;
+  state.meta.nombre = nombre;
+  state.meta.maxJugadores = maxJ;
+  await saveState();
+  currentTab='inicio';
+  render();
+}
+async function guardarNombreTorneo(nombre,maxJ){
+  state.meta.nombre = nombre || state.meta.nombre;
+  const m = parseInt(maxJ,10);
+  if(m && state.meta.estado==='inscripcion'){ state.meta.maxJugadores = Math.max(2, Math.min(64,m)); }
+  await saveState();
+  uiMsg='Ajustes guardados.';
+  render();
+}
+
+/* ============ NAVEGACIÓN ============ */
+function setTab(t){ currentTab=t; selectedMatch=null; uiError=''; uiMsg=''; render(); }
+
+/* ============ RENDER: NAV / SHELL ============ */
+function estadoLabel(){
+  return {inscripcion:'Inscripción abierta',sorteo_realizado:'Cuadro en juego',finalizado:'Finalizado'}[state.meta.estado] || state.meta.estado;
+}
+function renderNav(){
+  const tabs = [
+    ['inicio','Inicio'],['inscripcion','Inscripción'],['fechas','Fechas'],
+    ['sorteo','Sorteo'],['principal','Cuadro principal'],['consolacion','Consolación'],['admin','Admin']
+  ];
+  return '<nav class="tabs">' + tabs.map(([k,l])=>
+    '<button class="'+(currentTab===k?'active':'')+'" onclick="setTab(\''+k+'\')">'+l+'</button>'
+  ).join('') + '</nav>';
+}
+function renderMsgs(){
+  let h='';
+  if(uiError) h += '<div class="error">⚠ '+uiError+'</div>';
+  if(uiMsg) h += '<div class="success">✓ '+uiMsg+'</div>';
+  return h;
+}
+
+/* ============ RENDER: INICIO (con reloj de partido) ============ */
+function renderClock(){
+  const fi = state.meta.fechaInicio, ff = state.meta.fechaFin;
+  if(!fi || !ff) return '<div class="clock"><div class="clock-top"><span class="disp clock-sub">Reloj del torneo</span></div><p class="hint" style="margin:0;">Configura las fechas de inicio y fin en la pestaña <b>Fechas</b> para activar la cuenta atrás.</p></div>';
+  const start=new Date(fi).getTime(), end=new Date(ff).getTime(), now=Date.now();
+  const total = end-start;
+  const pct = Math.max(0,Math.min(100,((now-start)/total)*100));
+  const diasTotales = Math.round(total/86400000);
+  const diaActual = Math.max(0,Math.min(diasTotales,Math.round((now-start)/86400000)));
+  let ticksHtml = '';
+  const deadlines = state.principal.fechasLimite || [];
+  deadlines.forEach((d,idx)=>{
+    const t = new Date(d).getTime();
+    const p = Math.max(0,Math.min(100,((t-start)/total)*100));
+    const overdue = now>t && !(state.principal.campeon);
+    ticksHtml += '<div class="tick'+(overdue?' overdue':'')+'" style="left:'+p+'%"></div>';
+    ticksHtml += '<div class="tick-label" style="left:'+p+'%">R'+(idx+1)+'<br>'+formatDate(d)+'</div>';
+  });
+  const marker = '<div class="marker-now" style="left:'+pct+'%"></div>';
+  const restante = Math.max(0, Math.round((end-now)/86400000));
+  return '<div class="clock">'
+    +'<div class="clock-top"><span class="disp clock-sub">Reloj del torneo</span><span class="clock-reading">'+(state.meta.estado==='finalizado' ? 'FINALIZADO' : ('DÍA '+diaActual+' / '+diasTotales))+'</span></div>'
+    +'<div class="track"><div class="track-fill" style="width:'+pct+'%"></div>'+ticksHtml+marker+'</div>'
+    +'<p class="hint" style="margin-top:22px;">Inicio: '+formatDate(fi)+' &nbsp;·&nbsp; Límite final: '+formatDate(ff)+' &nbsp;·&nbsp; '+(state.meta.estado==='finalizado'?'Torneo completado.':(restante+' días restantes.'))+'</p>'
+    +'</div>';
+}
+function renderInicio(){
+  const n = state.jugadores.length, max = state.meta.maxJugadores;
+  return renderClock()
+    + '<div class="panel">'
+    + '<h2>'+state.meta.nombre+'</h2>'
+    + '<p style="color:var(--chalk-dim);margin-top:-6px;">Cuadro de eliminación directa con consolación · hasta '+max+' jugadores · duración máxima 2 meses.</p>'
+    + '<div class="grid2" style="margin-top:16px;">'
+      + '<div><label>Estado</label><div class="badge reg">'+estadoLabel()+'</div></div>'
+      + '<div><label>Jugadores inscritos</label><div class="mono" style="font-size:20px;">'+n+' / '+max+'</div></div>'
+    + '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">'
+      + '<button class="btn-ghost btn-small" onclick="refreshFromStorage()">↻ Actualizar datos</button>'
+      + (state.principal.campeon ? '<span class="badge done">🏆 Campeón: '+state.principal.campeon.nombre+'</span>' : '')
+    + '</div>'
+    + '</div>';
+}
+
+/* ============ RENDER: INSCRIPCIÓN ============ */
+function renderInscripcion(){
+  const abierto = registrationOpen();
+  const n = state.jugadores.length, max = state.meta.maxJugadores;
+  let h = '<div class="panel"><h2>Inscripción de jugadores</h2>';
+  h += '<p class="hint">Plazas: '+n+' / '+max+(state.meta.fechaLimiteInscripcion?(' · Cierra: '+formatDate(state.meta.fechaLimiteInscripcion)):'')+'</p>';
+  if(!abierto){
+    h += '<p class="error" style="margin-left:0;">La inscripción está cerrada'+(state.meta.estado!=='inscripcion'?' (el sorteo ya se ha realizado).':'.')+'</p>';
+  } else {
+    h += ''
+    +'<label>Nombre completo</label><input id="regNombre" type="text" placeholder="Nombre y apellidos">'
+    +'<div class="grid2">'
+      +'<div><label>Email (opcional)</label><input id="regEmail" type="email" placeholder="correo@ejemplo.com"></div>'
+      +'<div><label>Teléfono (opcional)</label><input id="regTel" type="tel" placeholder="600 000 000"></div>'
+    +'</div>'
+    +'<button class="btn-primary" onclick="registerPlayer(document.getElementById(\'regNombre\').value,document.getElementById(\'regEmail\').value,document.getElementById(\'regTel\').value)">Inscribirme</button>';
+  }
+  h += renderMsgs();
+  h += '<h3 style="margin-top:26px;font-size:15px;color:var(--chalk-dim);">Jugadores inscritos</h3>';
+  if(n===0){ h += '<p class="hint">Todavía no hay jugadores inscritos.</p>'; }
+  else {
+    h += '<div class="players-list">' + state.jugadores.map(p=>
+      '<div class="player-chip">'+p.nombre + (isAdmin && state.meta.estado==='inscripcion' ? ' <button onclick="removePlayer(\''+p.id+'\')" title="Eliminar">✕</button>' : '') + '</div>'
+    ).join('') + '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ============ RENDER: FECHAS ============ */
+function renderFechas(){
+  const m = state.meta;
+  let h = '<div class="panel"><h2>Fechas del campeonato</h2>';
+  h += '<p class="hint">La duración total entre el inicio del cuadro y la fecha límite no puede superar 2 meses.</p>';
+  if(!isAdmin){
+    h += '<div class="grid2">'
+      +'<div><label>Límite de inscripción</label><div class="mono">'+formatDate(m.fechaLimiteInscripcion)+'</div></div>'
+      +'<div><label>Inicio del cuadro</label><div class="mono">'+formatDate(m.fechaInicio)+'</div></div>'
+      +'<div><label>Fecha límite final</label><div class="mono">'+formatDate(m.fechaFin)+'</div></div>'
+    +'</div>';
+    h += '<p class="hint">Inicia sesión como administrador para modificar las fechas.</p>';
+  } else {
+    h += '<div class="grid2">'
+      +'<div><label>Límite de inscripción</label><input id="fInsc" type="date" value="'+(m.fechaLimiteInscripcion||'')+'"></div>'
+      +'<div><label>Inicio del cuadro</label><input id="fInicio" type="date" value="'+(m.fechaInicio||'')+'"></div>'
+    +'</div>';
+    h += '<label>Fecha límite final (máx. 2 meses tras el inicio)</label><input id="fFin" type="date" value="'+(m.fechaFin||'')+'">';
+    h += renderMsgs();
+    h += '<button class="btn-primary" onclick="saveFechas(document.getElementById(\'fInsc\').value,document.getElementById(\'fInicio\').value,document.getElementById(\'fFin\').value)">Guardar fechas</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ============ RENDER: SORTEO ============ */
+function renderSorteo(){
+  let h = '<div class="panel"><h2>Sorteo del cuadro</h2>';
+  if(state.meta.estado!=='inscripcion'){
+    h += '<p class="hint">El sorteo ya se ha realizado. Consulta el cuadro principal y de consolación en sus pestañas.</p>';
+    if(isAdmin) h += '<button class="btn-danger" onclick="reiniciarTorneo()">Reiniciar torneo (borra inscripciones y cuadro)</button>';
+  } else if(!isAdmin){
+    h += '<p class="hint">Solo un administrador puede realizar el sorteo. Inicia sesión en la pestaña Admin.</p>';
+  } else {
+    const n = state.jugadores.length;
+    h += '<p class="hint">Jugadores inscritos: '+n+'. El sorteo generará un cuadro de '+nextPow2(Math.max(n,2))+' plazas ('+(nextPow2(Math.max(n,2))-n)+' byes) con eliminación directa, más un cuadro de consolación para quienes pierdan en la primera ronda.</p>';
+    h += renderMsgs();
+    const disabled = n<2 || !state.meta.fechaInicio || !state.meta.fechaFin;
+    h += '<button class="btn-primary" '+(disabled?'disabled':'')+' onclick="realizarSorteo()">🎾 Realizar sorteo</button>';
+    if(!state.meta.fechaInicio || !state.meta.fechaFin) h += '<p class="hint">Configura antes las fechas de inicio y fin.</p>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ============ RENDER: BRACKET GEOMETRY ============ */
+function computeCenters(rondas){
+  const centers = [];
+  const n0 = rondas[0].length;
+  centers[0] = [];
+  for(let i=0;i<n0;i++) centers[0].push(i*(CARD_H+GAP0) + CARD_H/2);
+  for(let r=1;r<rondas.length;r++){
+    centers[r] = [];
+    for(let i=0;i<rondas[r].length;i++){
+      centers[r].push((centers[r-1][2*i] + centers[r-1][2*i+1]) / 2);
+    }
+  }
+  return centers;
+}
+function matchStatus(m, deadline){
+  if(!m.p1Id && !m.p2Id) return {label:'—',cls:''};
+  if(!m.p2Id && m.confirmado && m.confirmado.bye) return {label:'BYE',cls:''};
+  if(m.confirmado) return {label:'Confirmado',cls:'confirmed'};
+  if(m.propuesto) return {label:'Pend. verificación',cls:'pending'};
+  if(!m.p1Id || !m.p2Id) return {label:'Por definir',cls:''};
+  if(deadline && todayISO() > deadline) return {label:'Atrasado',cls:'overdue'};
+  return {label:'Por jugar',cls:''};
+}
+function scoreText(sets){
+  if(!sets || !sets.length) return '';
+  return sets.map(s=>s[0]+'-'+s[1]).join('  ');
+}
+function renderBracket(bracketKey){
+  const bracket = state[bracketKey];
+  if(!bracket.rondas.length){
+    if(bracketKey==='consolacion' && state.consolacion.generada){
+      return '<p class="hint">No se generó cuadro de consolación (participantes insuficientes en primera ronda).</p>';
+    }
+    if(bracketKey==='consolacion'){
+      return '<p class="hint">El cuadro de consolación se generará automáticamente cuando se confirmen todos los resultados de la primera ronda del cuadro principal.</p>';
+    }
+    return '<p class="hint">El sorteo todavía no se ha realizado.</p>';
+  }
+  const centers = computeCenters(bracket.rondas);
+  const totalHeight = centers[0][centers[0].length-1] + CARD_H/2 + GAP0;
+  const numRounds = bracket.rondas.length;
+  const totalWidth = numRounds*CARD_GAP_X + CARD_W + (bracket.campeon?CARD_GAP_X:0);
+  const consClass = bracketKey==='consolacion' ? ' cons' : '';
+
+  let cardsHtml = '';
+  let connHtml = '';
+  let headersHtml = '';
+
+  bracket.rondas.forEach((ronda,r)=>{
+    const x = r*CARD_GAP_X;
+    const dl = bracket.fechasLimite[r];
+    headersHtml += '<div class="round-header" style="left:'+x+'px;">'+nombreRonda(ronda.length)+'<span class="dl">límite '+formatDate(dl)+'</span></div>';
+    ronda.forEach((m,i)=>{
+      const y = centers[r][i] - CARD_H/2;
+      const st = matchStatus(m, dl);
+      const p1Win = m.confirmado && m.confirmado.ganadorId===m.p1Id;
+      const p2Win = m.confirmado && m.confirmado.ganadorId===m.p2Id;
+      const scTxt = m.confirmado ? scoreText(m.confirmado.sets) : '';
+      const isSel = selectedMatch && selectedMatch.bracket===bracketKey && selectedMatch.r===r && selectedMatch.i===i;
+      cardsHtml += '<div class="match-card'+consClass+(isSel?' selected':'')+'" style="left:'+x+'px;top:'+y+'px;height:'+CARD_H+'px;" onclick="selectMatch(\''+bracketKey+'\','+r+','+i+')">'
+        + '<div class="match-row'+(p1Win?' winner':'')+'"><span class="name">'+(m.p1Nombre||'—')+'</span><span class="sc">'+(p1Win?scTxt:'')+'</span></div>'
+        + '<div class="match-row'+(p2Win?' winner':'')+'"><span class="name">'+(m.p2Nombre|| (m.p1Id&&!m.p2Id?'BYE':'—'))+'</span><span class="sc">'+(p2Win?scTxt:'')+'</span></div>'
+        + '<div class="match-status '+st.cls+'">'+st.label+'</div>'
+        + '</div>';
+
+      // connectors to next round
+      if(r+1 < bracket.rondas.length && i%2===0){
+        const yTop = centers[r][i], yBot = centers[r][i+1];
+        const xBus = x + CARD_W + COL_GAP/2;
+        connHtml += '<div class="conn'+consClass+'" style="left:'+(x+CARD_W)+'px;top:'+(yTop-1)+'px;width:'+(COL_GAP/2)+'px;height:2px;"></div>';
+        connHtml += '<div class="conn'+consClass+'" style="left:'+(x+CARD_W)+'px;top:'+(yBot-1)+'px;width:'+(COL_GAP/2)+'px;height:2px;"></div>';
+        connHtml += '<div class="conn'+consClass+'" style="left:'+xBus+'px;top:'+Math.min(yTop,yBot)+'px;width:2px;height:'+Math.abs(yBot-yTop)+'px;"></div>';
+        const yMid = (yTop+yBot)/2;
+        connHtml += '<div class="conn'+consClass+'" style="left:'+xBus+'px;top:'+(yMid-1)+'px;width:'+(COL_GAP/2)+'px;height:2px;"></div>';
+      }
+    });
+  });
+
+  if(bracket.campeon){
+    const xC = numRounds*CARD_GAP_X;
+    const yC = centers[numRounds-1][0] - 30;
+    cardsHtml += '<div class="champion-box" style="left:'+xC+'px;top:'+yC+'px;"><div class="lbl">🏆 Campeón</div><div class="nm">'+bracket.campeon.nombre+'</div></div>';
+  }
+
+  return '<div class="bracket-scroll"><div class="bracket-wrap" style="width:'+totalWidth+'px;height:'+(totalHeight+34)+'px;margin-top:34px;">'
+    + headersHtml + connHtml + cardsHtml + '</div></div>';
+}
+function selectMatch(bracketKey,r,i){
+  selectedMatch = {bracket:bracketKey,r:r,i:i};
+  uiError=''; uiMsg='';
+  render();
+}
+
+/* ============ RENDER: PANEL DE PARTIDO ============ */
+function renderMatchPanel(){
+  if(!selectedMatch) return '';
+  const {bracket,r,i} = selectedMatch;
+  const m = state[bracket].rondas[r][i];
+  let h = '<div class="panel match-panel"><h2>Detalle del partido</h2>';
+  h += '<p class="hint">'+nombreRonda(state[bracket].rondas[r].length)+' · '+(bracket==='consolacion'?'Cuadro de consolación':'Cuadro principal')+'</p>';
+
+  if(!m.p1Id || !m.p2Id){
+    h += '<p class="hint">Este partido todavía espera a que se resuelvan los previos.</p>';
+  } else if(m.confirmado){
+    const winName = m.confirmado.ganadorId===m.p1Id ? m.p1Nombre : m.p2Nombre;
+    h += '<p><b>'+m.p1Nombre+'</b> vs <b>'+m.p2Nombre+'</b></p>';
+    h += '<p class="badge done">Confirmado — ganó '+winName+' '+(m.confirmado.sets.length?('('+scoreText(m.confirmado.sets)+')'):'')+'</p>';
+  } else {
+    h += '<p><b>'+m.p1Nombre+'</b> vs <b>'+m.p2Nombre+'</b></p>';
+    if(m.propuesto){
+      const propName = m.propuesto.ganadorId===m.p1Id ? m.p1Nombre : m.p2Nombre;
+      h += '<div class="badge pending" style="margin-bottom:10px;">Propuesto por '+m.propuesto.por+': ganó '+propName+' '+(m.propuesto.sets.length?('('+scoreText(m.propuesto.sets)+')'):'')+'</div>';
+      if(isAdmin){
+        h += '<div style="display:flex;gap:10px;">'
+          +'<button class="btn-primary" onclick="confirmarResultado(\''+bracket+'\','+r+','+i+',true)">✓ Confirmar resultado</button>'
+          +'<button class="btn-danger" onclick="rechazarPropuesta(\''+bracket+'\','+r+','+i+')">Rechazar propuesta</button>'
+        +'</div>';
+      } else {
+        h += '<p class="hint">Un administrador debe verificar este resultado antes de que sea oficial.</p>';
+      }
+    } else {
+      h += renderResultForm(m);
+      h += renderMsgs();
+      h += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+      if(!isAdmin) h += '<button class="btn-primary" onclick="proponerResultado(\''+bracket+'\','+r+','+i+')">Proponer resultado</button>';
+      if(isAdmin) h += '<button class="btn-primary" onclick="confirmarResultado(\''+bracket+'\','+r+','+i+',false)">Registrar y confirmar (admin)</button>';
+      h += '</div>';
+    }
+  }
+  h += '<div style="margin-top:14px;"><button class="btn-ghost btn-small" onclick="selectedMatch=null;render();">Cerrar</button></div>';
+  h += '</div>';
+  return h;
+}
+function renderResultForm(m){
+  let h = '<div class="radio-row">'
+    + '<label><input type="radio" name="ganador" value="p1"> Ganó '+m.p1Nombre+'</label>'
+    + '<label><input type="radio" name="ganador" value="p2"> Ganó '+m.p2Nombre+'</label>'
+  + '</div>';
+  for(let s=1;s<=3;s++){
+    h += '<div class="set-row"><span>Set '+s+'</span><input type="number" min="0" max="7" id="set'+s+'a" placeholder="J1"><span>–</span><input type="number" min="0" max="7" id="set'+s+'b" placeholder="J2"></div>';
+  }
+  h += '<label>Tu nombre (para identificar quién propone el resultado)</label><input type="text" id="propuestoPor" placeholder="Tu nombre">';
+  return h;
+}
+
+/* ============ RENDER: ADMIN ============ */
+function renderAdmin(){
+  let h = '<div class="panel"><h2>Administración</h2>';
+  if(!state.meta.adminHash){
+    h += '<p class="hint">Configura la contraseña de administrador para este torneo.</p>';
+    h += '<label>Contraseña</label><input type="password" id="passSetup1">';
+    h += '<label>Confirmar contraseña</label><input type="password" id="passSetup2">';
+    h += renderMsgs();
+    h += '<button class="btn-primary" onclick="configurarPassword(document.getElementById(\'passSetup1\').value,document.getElementById(\'passSetup2\').value)">Configurar contraseña</button>';
+  } else if(!isAdmin){
+    h += '<label>Contraseña de administrador</label><input type="password" id="passLogin">';
+    h += renderMsgs();
+    h += '<button class="btn-primary" onclick="loginAdmin(document.getElementById(\'passLogin\').value)">Entrar</button>';
+  } else {
+    h += '<p class="success">Sesión de administrador activa.</p>';
+    h += '<button class="btn-ghost btn-small" onclick="logoutAdmin()">Cerrar sesión</button>';
+    h += '<h3 style="margin-top:24px;font-size:14px;color:var(--chalk-dim);">Ajustes del torneo</h3>';
+    h += '<label>Nombre del torneo</label><input type="text" id="nombreTorneo" value="'+state.meta.nombre+'">';
+    h += '<label>Plazas máximas (2–64)</label><input type="number" min="2" max="64" id="maxJ" value="'+state.meta.maxJugadores+'" '+(state.meta.estado!=='inscripcion'?'disabled':'')+'>';
+    h += renderMsgs();
+    h += '<button class="btn-primary" onclick="guardarNombreTorneo(document.getElementById(\'nombreTorneo\').value,document.getElementById(\'maxJ\').value)">Guardar ajustes</button>';
+    h += '<h3 style="margin-top:26px;font-size:14px;color:var(--red);">Zona de riesgo</h3>';
+    h += '<button class="btn-danger" onclick="reiniciarTorneo()">Reiniciar torneo</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ============ RENDER MASTER ============ */
+function render(){
+  let body = renderNav();
+  if(currentTab==='inicio') body += renderInicio();
+  else if(currentTab==='inscripcion') body += renderInscripcion();
+  else if(currentTab==='fechas') body += renderFechas();
+  else if(currentTab==='sorteo') body += renderSorteo();
+  else if(currentTab==='principal'){
+    body += '<div class="panel"><h2>Cuadro principal</h2>' + renderBracket('principal') + '</div>' + renderMatchPanel();
+  }
+  else if(currentTab==='consolacion'){
+    body += '<div class="panel"><h2>Cuadro de consolación</h2>' + renderBracket('consolacion') + '</div>' + renderMatchPanel();
+  }
+  else if(currentTab==='admin') body += renderAdmin();
+
+  let configWarning = '';
+  if(!configOk){
+    configWarning = '<div class="config-warning"><b>⚠ Falta configurar Firebase.</b> Los datos no se están guardando ni compartiendo todavía. '
+      + 'Abre el archivo HTML, busca <code>firebaseConfig</code> cerca del principio del <code>&lt;script&gt;</code> y pega ahí las claves de tu proyecto de Firebase. '
+      + 'Mientras tanto, la app funciona solo en esta pestaña y se perderá al recargar.</div>';
+  }
+  const remoteBanner = remoteUpdatePending ? '<div class="remote-banner" onclick="applyPendingUpdate()">↻ Hay cambios nuevos — pulsa para actualizar</div>' : '';
+
+  document.getElementById('app').innerHTML =
+    '<div class="topbar"><div class="brand"><div class="ball-dot"></div><h1>'+state.meta.nombre+'</h1></div><span class="estado-pill">'+estadoLabel()+'</span></div>'
+    + configWarning
+    + body
+    + remoteBanner
+    + '<footer>Circuito · gestión de campeonato · datos compartidos en tiempo real para todas las personas con este enlace</footer>';
+}
+
+/* ============ INIT ============ */
+async function init(){
+  await loadState();
+  render();
+}
+init();
+</script>
+</body>
+</html>
